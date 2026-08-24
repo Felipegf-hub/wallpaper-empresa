@@ -40,6 +40,15 @@ try {
     Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Control Panel\Desktop" -Name TileWallpaper -Value "0"
     Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Control Panel\Desktop" -Name Wallpaper -Value $path
 
+    # Forca o tipo de plano de fundo para "Imagem" (desativa Spotlight/Slideshow)
+    New-Item -Path "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers" -Force | Out-Null
+    Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers" -Name "BackgroundType" -Value 0 -Type DWord
+
+    # Desativa o Windows Spotlight caso esteja habilitado
+    New-Item -Path "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Force | Out-Null
+    Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord
+
     if (-not $hiveCarregado) {
         [gc]::Collect()
         reg unload "HKU\$sid" | Out-Null
