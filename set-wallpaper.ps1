@@ -8,18 +8,18 @@ function Write-Log($msg) {
 try {
     Write-Log "Iniciando..."
 
-    $sessao = quser 2>$null | Where-Object { $_ -match "Ativo|Active" }
-    if (-not $sessao) {
-        Write-Log "Nenhum usuario com sessao ativa encontrado. Abortando."
+    $explorerProc = Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" | Select-Object -First 1
+    if (-not $explorerProc) {
+        Write-Log "Nenhum processo explorer.exe encontrado. Nenhum usuario logado. Abortando."
         exit
     }
 
-    $linhaLimpa = ($sessao -replace '^>', '').Trim()
-    $campos = $linhaLimpa -split '\s+'
-    $usuario = $campos[0]
-    Write-Log "Usuario ativo detectado: $usuario"
+    $ownerInfo = Invoke-CimMethod -InputObject $explorerProc -MethodName GetOwner
+    $usuario = $ownerInfo.User
+    $dominio = $ownerInfo.Domain
+    Write-Log "Usuario ativo detectado: $dominio\$usuario"
 
-    $sid = (New-Object System.Security.Principal.NTAccount($usuario)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+    $sid = (New-Object System.Security.Principal.NTAccount($dominio, $usuario)).Translate([System.Security.Principal.SecurityIdentifier]).Value
     Write-Log "SID: $sid"
 
     $perfilPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid").ProfileImagePath
@@ -47,7 +47,7 @@ try {
 
     RUNDLL32.EXE user32.dll, UpdatePerUserSystemParameters
 
-    Write-Log "Wallpaper aplicado com sucesso para $usuario"
+    Write-Log "Wallpaper aplicado com sucesso para $dominio\$usuario"
     Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
 } catch {
     Write-Log "ERRO: $_"
