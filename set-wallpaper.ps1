@@ -1,35 +1,56 @@
 $url = "https://raw.githubusercontent.com/Felipegf-hub/wallpaper-empresa/main/desktop_NPE.jpg"
-$path = "$env:APPDATA\wallpaper.jpg"
-$hashFile = "$env:APPDATA\wallpaper.hash"
-$logFile = "$env:APPDATA\wallpaper.log"
+$logFile = "C:\ProgramData\WallpaperUpdater\wallpaper.log"
+
+function Write-Log($msg) {
+    "$(Get-Date) - $msg" | Out-File $logFile -Append
+}
 
 try {
-    "$(Get-Date) - Iniciando..." | Out-File $logFile -Append
+    Write-Log "Iniciando..."
+
+    # Descobre o usuario atualmente logado na sessao ativa (nao o SYSTEM/admin)
+    $sessao = quser 2>$null | Where-Object { $_ -match "Ativo|Active" }
+    if (-not $sessao) {
+        Write-Log "Nenhum usuario com sessao ativa encontrado. Abortando."
+        exit
+    }
+    $usuario = ($sessao -split '\s+')[1]
+    Write-Log "Usuario ativo detectado: $usuario"
+
+    # Descobre o SID do usuario
+    $sid = (New-Object System.Security.Principal.NTAccount($usuario)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+    Write-Log "SID: $sid"
+
+    # Caminho do perfil do usuario
+    $perfilPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid").ProfileImagePath
+    $path = "$perfilPath\AppData\Roaming\wallpaper.jpg"
 
     $tempPath = "$env:TEMP\wallpaper_novo.jpg"
     Invoke-WebRequest -Uri $url -OutFile $tempPath -UseBasicParsing
-
-    $novoHash = (Get-FileHash $tempPath -Algorithm SHA256).Hash
-    "$(Get-Date) - Hash novo: $novoHash" | Out-File $logFile -Append
-
     Copy-Item $tempPath $path -Force
-    Set-Content -Path $hashFile -Value $novoHash
+    Write-Log "Imagem salva em: $path"
 
-    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name WallpaperStyle -Value "10"
-    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name TileWallpaper -Value "0"
+    # Carrega o hive do usuario se nao estiver carregado, para editar o registro dele
+    $hiveCarregado = Test-Path "Registry::HKEY_USERS\$sid"
+    if (-not $hiveCarregado) {
+        reg load "HKU\$sid" "$perfilPath\NTUSER.DAT" | Out-Null
+        Write-Log "Hive do usuario carregado manualmente"
+    }
 
-    Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class Wallpaper {
-    [DllImport("user32.dll", CharSet=CharSet.Auto)]
-    public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-}
-"@
-    $resultado = [Wallpaper]::SystemParametersInfo(20, 0, $path, 3)
-    "$(Get-Date) - Wallpaper reaplicado. Resultado: $resultado" | Out-File $logFile -Append
+    Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Control Panel\Desktop" -Name WallpaperStyle -Value "10"
+    Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Control Panel\Desktop" -Name TileWallpaper -Value "0"
+    Set-ItemProperty -Path "Registry::HKEY_USERS\$sid\Control Panel\Desktop" -Name Wallpaper -Value $path
 
+    if (-not $hiveCarregado) {
+        [gc]::Collect()
+        reg unload "HKU\$sid" | Out-Null
+    }
+
+    # Aplica via RUNDLL32 no contexto do usuario logado usando o comando de refresh do explorer
+    RUNDLL32.EXE user32.dll, UpdatePerUserSystemParameters
+
+    Write-Log "Wallpaper aplicado com sucesso para $usuario"
     Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
 } catch {
-    "$(Get-Date) - ERRO: $_" | Out-File $logFile -Append
+    Write-Log "ERRO: $_"
 }
