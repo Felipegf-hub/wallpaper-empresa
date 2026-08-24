@@ -1,4 +1,4 @@
-$url = "https://drive.google.com/uc?export=download&id=1FlwTR2q-03M9KucwX1IAKOdep6fBEyQR"
+$url = "https://raw.githubusercontent.com/Felipegf-hub/wallpaper-empresa/main/desktop_NPE.jpg"
 $path = "$env:APPDATA\wallpaper.jpg"
 $hashFile = "$env:APPDATA\wallpaper.hash"
 
