@@ -8,20 +8,20 @@ function Write-Log($msg) {
 try {
     Write-Log "Iniciando..."
 
-    # Descobre o usuario atualmente logado na sessao ativa (nao o SYSTEM/admin)
     $sessao = quser 2>$null | Where-Object { $_ -match "Ativo|Active" }
     if (-not $sessao) {
         Write-Log "Nenhum usuario com sessao ativa encontrado. Abortando."
         exit
     }
-    $usuario = ($sessao -split '\s+')[1]
+
+    $linhaLimpa = ($sessao -replace '^>', '').Trim()
+    $campos = $linhaLimpa -split '\s+'
+    $usuario = $campos[0]
     Write-Log "Usuario ativo detectado: $usuario"
 
-    # Descobre o SID do usuario
     $sid = (New-Object System.Security.Principal.NTAccount($usuario)).Translate([System.Security.Principal.SecurityIdentifier]).Value
     Write-Log "SID: $sid"
 
-    # Caminho do perfil do usuario
     $perfilPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid").ProfileImagePath
     $path = "$perfilPath\AppData\Roaming\wallpaper.jpg"
 
@@ -30,7 +30,6 @@ try {
     Copy-Item $tempPath $path -Force
     Write-Log "Imagem salva em: $path"
 
-    # Carrega o hive do usuario se nao estiver carregado, para editar o registro dele
     $hiveCarregado = Test-Path "Registry::HKEY_USERS\$sid"
     if (-not $hiveCarregado) {
         reg load "HKU\$sid" "$perfilPath\NTUSER.DAT" | Out-Null
@@ -46,7 +45,6 @@ try {
         reg unload "HKU\$sid" | Out-Null
     }
 
-    # Aplica via RUNDLL32 no contexto do usuario logado usando o comando de refresh do explorer
     RUNDLL32.EXE user32.dll, UpdatePerUserSystemParameters
 
     Write-Log "Wallpaper aplicado com sucesso para $usuario"
