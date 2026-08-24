@@ -10,14 +10,11 @@ try {
     Invoke-WebRequest -Uri $url -OutFile $tempPath -UseBasicParsing
 
     $novoHash = (Get-FileHash $tempPath -Algorithm SHA256).Hash
-    $hashAntigo = if (Test-Path $hashFile) { Get-Content $hashFile } else { "" }
-
-    "$(Get-Date) - Hash novo: $novoHash | Hash antigo: $hashAntigo" | Out-File $logFile -Append
+    "$(Get-Date) - Hash novo: $novoHash" | Out-File $logFile -Append
 
     Copy-Item $tempPath $path -Force
     Set-Content -Path $hashFile -Value $novoHash
 
-    # Garante o estilo "Preencher" (evita imagem nao aparecer corretamente)
     Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name WallpaperStyle -Value "10"
     Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name TileWallpaper -Value "0"
 
@@ -30,7 +27,7 @@ public class Wallpaper {
 }
 "@
     $resultado = [Wallpaper]::SystemParametersInfo(20, 0, $path, 3)
-    "$(Get-Date) - Resultado SystemParametersInfo: $resultado" | Out-File $logFile -Append
+    "$(Get-Date) - Wallpaper reaplicado. Resultado: $resultado" | Out-File $logFile -Append
 
     Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
 } catch {
